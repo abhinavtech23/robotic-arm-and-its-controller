@@ -17,8 +17,7 @@ class ControlScreen extends StatefulWidget {
 }
 
 class _ControlScreenState extends State<ControlScreen> {
-  final List<double> _angles = List.filled(6, 90.0);
-  bool _lockJoints = false;
+  final List<double> _angles = List.filled(7, 90.0);
 
   static const List<String> _jointLabels = [
     'BASE',
@@ -27,6 +26,7 @@ class _ControlScreenState extends State<ControlScreen> {
     'Wrist-P',
     'Wrist-R',
     'GRIP',
+    'CLAW',
   ];
 
   static const List<Color> _jointColors = [
@@ -36,29 +36,11 @@ class _ControlScreenState extends State<ControlScreen> {
     Color(0xFF80D8FF),
     OgarmColors.amber,
     Color(0xFFFFD54F),
+    Color(0xFFFFAB00),
   ];
-
   void _onAngleChanged(int index, double value) {
     setState(() {
       _angles[index] = value;
-
-      // Lock joints: J0 ↔ J3 inverse coupling
-      if (_lockJoints) {
-        if (index == 0) {
-          _angles[3] = 180 - value;
-          context.read<RobotService>().sendSingleServo(4, _angles[3].round());
-        } else if (index == 3) {
-          _angles[0] = 180 - value;
-          context.read<RobotService>().sendSingleServo(1, _angles[0].round());
-        }
-        if (index == 1) {
-          _angles[4] = 180 - value;
-          context.read<RobotService>().sendSingleServo(5, _angles[4].round());
-        } else if (index == 4) {
-          _angles[1] = 180 - value;
-          context.read<RobotService>().sendSingleServo(2, _angles[1].round());
-        }
-      }
     });
 
     // Send the primary servo (1-indexed)
@@ -67,7 +49,7 @@ class _ControlScreenState extends State<ControlScreen> {
 
   void _onEStop() {
     setState(() {
-      for (int i = 0; i < 6; i++) {
+      for (int i = 0; i < 7; i++) {
         _angles[i] = 90.0;
       }
     });
@@ -126,50 +108,7 @@ class _ControlScreenState extends State<ControlScreen> {
               ),
             ),
 
-            // Lock Joints Toggle
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: GlassCard(
-                margin: EdgeInsets.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                borderRadius: 12,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.link,
-                          color: _lockJoints ? OgarmColors.amber : mutedColor,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'LOCK JOINTS',
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: _lockJoints ? OgarmColors.amber : mutedColor,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Switch(
-                      value: _lockJoints,
-                      onChanged: (v) => setState(() => _lockJoints = v),
-                      activeThumbColor: OgarmColors.amber,
-                      activeTrackColor: OgarmColors.amber.withValues(alpha: 0.3),
-                      inactiveThumbColor: mutedColor,
-                      inactiveTrackColor: isLight ? Colors.black12 : OgarmColors.glassWhite,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // 6 Joint Control Cards in Grid
+            // 7 Joint Control Cards in Grid
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -183,7 +122,7 @@ class _ControlScreenState extends State<ControlScreen> {
                       crossAxisSpacing: 4,
                       mainAxisSpacing: 4,
                     ),
-                    itemCount: 6,
+                    itemCount: 7,
                     itemBuilder: (context, index) {
                       return OgarmSlider(
                         value: _angles[index],

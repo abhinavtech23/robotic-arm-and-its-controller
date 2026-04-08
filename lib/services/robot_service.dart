@@ -63,7 +63,7 @@ class RobotService extends ChangeNotifier {
   bool _isConnected = false;
   Timer? _heartbeatTimer;
   Timer? _throttleTimer;
-  final List<int> _pendingAngles = List.filled(6, 90);
+  final List<int> _pendingAngles = List.filled(7, 90);
   TelemetryData _telemetry = TelemetryData.empty();
   final List<TelemetryData> _telemetryHistory = [];
 
@@ -164,10 +164,10 @@ class RobotService extends ChangeNotifier {
   }
 
   void sendServoAngles(List<int> angles) {
-    for (int i = 0; i < 6 && i < angles.length; i++) {
+    for (int i = 0; i < 7 && i < angles.length; i++) {
       _pendingAngles[i] = angles[i].clamp(0, 180);
     }
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
       _doSendSingle(i + 1, _pendingAngles[i]);
     }
   }
@@ -196,10 +196,10 @@ class RobotService extends ChangeNotifier {
 
   Future<void> emergencyStop() async {
     _perServoTimer?.cancel();
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
       _pendingAngles[i] = 90;
     }
-    for (int i = 1; i <= 6; i++) {
+    for (int i = 1; i <= 7; i++) {
       try {
         await http
             .get(Uri.parse('$_baseUrl/set?servo=$i&value=90'))
@@ -351,7 +351,7 @@ class RobotService extends ChangeNotifier {
 
     if (_currentFrameIndex == -1) {
       // 90 degree neutral state
-      sendServoAngles(List.filled(6, 90));
+      sendServoAngles(List.filled(7, 90));
       _playTimer = Timer(Duration(milliseconds: delay), () {
         if (!_isPlaying) return;
         _currentFrameIndex = 0;

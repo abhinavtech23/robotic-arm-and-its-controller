@@ -15,7 +15,7 @@ OGARM is a high-performance, open-source robotic arm built on the ESP32 platform
 
 ## 🛠️ Hardware Requirements
 
-- **Microcontroller**: ESP32 (DevKitC recommended)
+- **Microcontroller**: ESP32 (nodemcu v3 recommended)
 - **Servos**: 6 x MG996R or similar high-torque servos
 - **Power Supply**: 5V 4A+ external power supply for servos
 - **OLED Display**: 0.96" I2C OLED (SSD1306)
