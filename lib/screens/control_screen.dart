@@ -20,14 +20,17 @@ class _ControlScreenState extends State<ControlScreen> {
   final List<double> _angles = List.filled(7, 90.0);
 
   static const List<String> _jointLabels = [
-    'BASE',
-    'Shoulder',
-    'Elbow',
-    'Wrist-P',
-    'Wrist-R',
-    'GRIP',
-    'CLAW',
+    'GRIPPER',   // Servo 1 (D1) — 0-90°
+    'BASE',      // Servo 2 (D3)
+    'Shoulder',  // Servo 3 (D4)
+    'Elbow',     // Servo 4 (D5)
+    'Wrist-P',   // Servo 5 (D6)
+    'Wrist-R',   // Servo 6 (D7)
+    'Wrist-Y',   // Servo 7 (D8)
   ];
+
+  // Servo 1 (Gripper) is locked to 0-90°, Servos 2-7 are 0-180°
+  static const List<double> _maxAngles = [90, 180, 180, 180, 180, 180, 180];
 
   static const List<Color> _jointColors = [
     OgarmColors.orange,
@@ -39,12 +42,14 @@ class _ControlScreenState extends State<ControlScreen> {
     Color(0xFFFFAB00),
   ];
   void _onAngleChanged(int index, double value) {
+    // Enforce max angle per servo (Gripper=90, others=180)
+    final clamped = value.clamp(0.0, _maxAngles[index]);
     setState(() {
-      _angles[index] = value;
+      _angles[index] = clamped;
     });
 
     // Send the primary servo (1-indexed)
-    context.read<RobotService>().sendSingleServo(index + 1, value.round());
+    context.read<RobotService>().sendSingleServo(index + 1, clamped.round());
   }
 
   void _onEStop() {
@@ -61,7 +66,6 @@ class _ControlScreenState extends State<ControlScreen> {
     final service = context.watch<RobotService>();
     final isLight = Theme.of(context).brightness == Brightness.light;
     final textColor = isLight ? const Color(0xFF1A1A2E) : OgarmColors.textPrimary;
-    final mutedColor = isLight ? const Color(0xFF5A5A6E) : OgarmColors.textMuted;
 
     return Container(
       decoration: BoxDecoration(
@@ -94,14 +98,6 @@ class _ControlScreenState extends State<ControlScreen> {
                   Row(
                     children: [
                       HeartbeatIndicator(isConnected: service.isConnected),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.settings_outlined, size: 22),
-                        color: textColor,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => Navigator.pushNamed(context, '/settings'),
-                      ),
                     ],
                   ),
                 ],
@@ -126,6 +122,8 @@ class _ControlScreenState extends State<ControlScreen> {
                     itemBuilder: (context, index) {
                       return OgarmSlider(
                         value: _angles[index],
+                        min: 0,
+                        max: _maxAngles[index],
                         label: _jointLabels[index],
                         index: index,
                         color: _jointColors[index],

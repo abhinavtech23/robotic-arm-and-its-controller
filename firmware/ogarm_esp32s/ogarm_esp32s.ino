@@ -1,45 +1,94 @@
-h += "<button class='btn rec' onclick=\"fetch('/record')\">RECORD</button>";
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <Servo.h>
+
+// --- 7 SERVO CONFIGURATION ---
+// Servo 1 (Gripper) is on D1. 
+// Servos 2-7 (Arm Joints) are on D3, D4, D5, D6, D7, D8
+int servoPins[7] = {D1, D3, D4, D5, D6, D7, D8};
+Servo s[7];
+
+// All 7 motors start at 90 degrees (Rest Position)
+float currentPos[7] = {90, 90, 90, 90, 90, 90, 90};
+int targetPos[7]    = {90, 90, 90, 90, 90, 90, 90};
+
+// --- RECORDING SYSTEM ---
+#define MAX_STEPS 250
+int recordData[MAX_STEPS][7];
+int stepCount = 0, playIndex = 0;
+bool recording = false, playing = false;
+unsigned long lastRecTime = 0, playTimer = 0;
+
+ESP8266WebServer server(80);
+
+// --- APP CORS HANDLER ---
+// Ensures the mobile app is allowed to communicate with the ESP8266
+void sendAppResponse(int code, String contentType, String content) {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Origin, Content-Type, Accept");
+  server.send(code, contentType, content);
+}
+
+// --- WEB DASHBOARD ---
+String getHTML() {
+  String h = "<!DOCTYPE html><html><head>";
+  h += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+  h += "<style>body{font-family:sans-serif; text-align:center; background:#1a1a1a; color:white;}";
+  h += ".btn{padding:15px 25px; margin:10px; border-radius:10px; border:none; font-weight:bold; cursor:pointer;}";
+  h += ".rec{background:#ff4757; color:white;} .play{background:#2ed573; color:white;} .stop{background:#57606f; color:white;}";
+  h += "input[type=range]{width:80%; height:20px; margin:10px 0;}</style></head><body>";
+  h += "<h1>Grobotics 7-Axis Control</h1>";
+  
+  // Control Buttons
+  h += "<button class='btn rec' onclick=\"fetch('/record')\">RECORD</button>";
   h += "<button class='btn play' onclick=\"fetch('/play')\">PLAYBACK</button>";
   h += "<button class='btn stop' onclick=\"fetch('/stop')\">STOP</button><hr>";
-  for(int i=1; i<=6; i++) {
+  
+  // 1. Gripper Slider (Locked to 0-90)
+  h += "<h3>1. Gripper (D1) [0-90&deg;]</h3>";
+  h += "<input type='range' min='0' max='90' value='90' oninput=\"fetch('/set?servo=1&value='+this.value)\"><hr>";
+  
+  // 2. Arm Sliders (0-180)
+  for(int i=2; i<=7; i++) {
     h += "<h3>Servo " + String(i) + "</h3>";
     h += "<input type='range' min='0' max='180' value='90' oninput=\"fetch('/set?servo=" + String(i) + "&value='+this.value)\">";
   }
-  h += "<p>Connected to Grobotics NodeMCU</p></body></html>";
+  
+  h += "<p>Connected to OGARM AP</p></body></html>";
   return h;
 }
 
 void setup() {
-  Wire.begin(D2, D1);
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  runBootSequence();
+  Serial.begin(115200);
 
-  // 1. Force Access Point mode only (prevents STA mode hangs)
+  // 1. Force Access Point mode only (prevents crashing if no internet)
   WiFi.mode(WIFI_AP);
 
-  // 2. Explicitly configure IP to 192.168.4.1
+  // 2. Explicitly configure IP to 192.168.4.1 for App compatibility
   IPAddress local_IP(192, 168, 4, 1);
   IPAddress gateway(192, 168, 4, 1);
   IPAddress subnet(255, 255, 255, 0);
   WiFi.softAPConfig(local_IP, gateway, subnet);
   
-  // 3. Start AP with correct name and password
+  // 3. Start AP
   WiFi.softAP("OGARM", "iloveogdeck");
 
-  for(int i=0; i<6; i++){
+  // 4. Attach all 7 servos with 180-degree pulse fix
+  for(int i=0; i<7; i++){
     s[i].attach(servoPins[i], 500, 2500);
-    s[i].write(90);
+    s[i].write(90); // Default to 90 degrees rest position
   }
 
-  // --- ROUTES (Now using App Response for CORS) ---
+  // --- SERVER ROUTES ---
   
-  // Handle Preflight OPTIONS requests for mobile apps
+  // Handle Preflight OPTIONS for mobile apps
   server.onNotFound([]() {
     if (server.method() == HTTP_OPTIONS) {
       server.sendHeader("Access-Control-Allow-Origin", "*");
       server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       server.sendHeader("Access-Control-Allow-Headers", "Origin, Content-Type, Accept");
-      server.send(204); // "No Content" OK response
+      server.send(204); 
     } else {
       server.send(404, "text/plain", "Not found");
     }
@@ -48,10 +97,19 @@ void setup() {
   server.on("/", [](){ sendAppResponse(200, "text/html", getHTML()); });
   
   server.on("/set", [](){
-    int i = server.arg("servo").toInt()-1;
+    int i = server.arg("servo").toInt() - 1; // Converts Servo 1-7 to Index 0-6
     int v = server.arg("value").toInt();
-    if(i>=0 && i<6) targetPos[i] = v;
-    sendAppResponse(200, "text/plain", "OK");
+    
+    // Safety constraint: Enforce 0-90 for Gripper (Index 0), 0-180 for others
+    if(i == 0) {
+      v = constrain(v, 0, 90);
+    } else if (i > 0 && i < 7) {
+      v = constrain(v, 0, 180);
+    }
+    
+    if(i >= 0 && i < 7) targetPos[i] = v;
+    sendAppResponse(200, "text/plain",
+    "OK");
   });
   
   server.on("/record", [](){ recording=true; playing=false; stepCount=0; sendAppResponse(200, "text/plain", "REC"); });
@@ -60,9 +118,9 @@ void setup() {
 
   server.on("/telemetry", [](){
     String json = "{";
-    json += "\"temp\": 0,";
-    json += "\"heap\": " + String(ESP.getFreeHeap()) + ",";
-    json += "\"uptime\": " + String(millis() / 1000);
+    json += "\"status\": \"" + String(recording ? "RECORDING" : (playing ? "PLAYING" : "IDLE")) + "\",";
+    json += "\"steps\": " + String(stepCount) + ",";
+    json += "\"heap\": " + String(ESP.getFreeHeap());
     json += "}";
     sendAppResponse(200, "application/json", json);
   });
@@ -74,60 +132,34 @@ void loop() {
   server.handleClient();
   unsigned long now = millis();
 
-  // 1. Servo Engine
+  // 1. Smooth Servo Engine (Handles all 7 motors)
   static unsigned long lastMove = 0;
   if(now - lastMove > 20){
     lastMove = now;
-    for(int i = 0; i < 6; i++){
+    for(int i = 0; i < 7; i++){
       float diff = targetPos[i] - currentPos[i];
       if(abs(diff) > 0.5){
-        currentPos[i] += diff * 0.15;
+        currentPos[i] += diff * 0.15; // Speed multiplier for smooth gliding
         s[i].writeMicroseconds(map((int)currentPos[i], 0, 180, 500, 2500));
       }
     }
   }
 
-  // 2. Logic Sync
+  // 2. Recording Sync (Captures 7 data points per step)
   if(recording && (now - lastRecTime > 150)){
     lastRecTime = now;
     if(stepCount < MAX_STEPS){
-      for(int i=0; i<6; i++) recordData[stepCount][i] = targetPos[i];
+      for(int i=0; i<7; i++) recordData[stepCount][i] = targetPos[i];
       stepCount++;
     }
   }
+  
+  // 3. Playback Sync (Plays back 7 data points per step)
   if(playing && (now - playTimer > 250)){
     playTimer = now;
     if(playIndex < stepCount){
-      for(int i=0; i<6; i++) targetPos[i] = recordData[playIndex][i];
+      for(int i=0; i<7; i++) targetPos[i] = recordData[playIndex][i];
       playIndex++;
     } else { playing = false; }
-  }
-
-  // 3. OLED Sync
-  static unsigned long oledUpdate = 0;
-  static bool blink = false;
-  if(now - oledUpdate > 120) {
-    oledUpdate = now;
-    display.clearDisplay();
-    
-    String modeStr = "IDLE";
-    if(recording) modeStr = "REC";
-    if(playing) modeStr = "PLAY";
-
-    if(!blink && random(0, 40) == 10) blink = true; else blink = false;
-
-    drawEyes(blink, modeStr);
-
-    display.setTextSize(1);
-    display.setCursor(10, 38);
-    display.print("Welcome Grobotics");
-    display.setCursor(0, 50);
-    display.print("IP: "); display.print(WiFi.softAPIP().toString());
-    display.setCursor(0, 58);
-    display.print("MODE: "); display.print(modeStr);
-    if(playing) display.fillRect(70, 60, map(playIndex, 0, stepCount, 0, 50), 3, WHITE);
-    if(recording) { display.setCursor(85, 58); display.print("S:"); display.print(stepCount); }
-
-    display.display();
   }
 }

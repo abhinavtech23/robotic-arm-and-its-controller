@@ -5,29 +5,29 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TelemetryData {
-  final double temperature;
+  final String status; // IDLE, RECORDING, PLAYING
+  final int steps;     // Recorded steps count on ESP
   final int heapFree;
-  final int uptime;
   final double latencyMs;
 
   TelemetryData({
-    required this.temperature,
+    required this.status,
+    required this.steps,
     required this.heapFree,
-    required this.uptime,
     required this.latencyMs,
   });
 
   factory TelemetryData.fromJson(Map<String, dynamic> json, double latency) {
     return TelemetryData(
-      temperature: (json['temp'] ?? 0).toDouble(),
+      status: (json['status'] ?? 'IDLE') as String,
+      steps: (json['steps'] ?? 0).toInt(),
       heapFree: (json['heap'] ?? 0).toInt(),
-      uptime: (json['uptime'] ?? 0).toInt(),
       latencyMs: latency,
     );
   }
 
   factory TelemetryData.empty() {
-    return TelemetryData(temperature: 0, heapFree: 0, uptime: 0, latencyMs: 0);
+    return TelemetryData(status: 'IDLE', steps: 0, heapFree: 0, latencyMs: 0);
   }
 }
 
@@ -158,7 +158,9 @@ class RobotService extends ChangeNotifier {
   // --- Servo Control ---
 
   void sendSingleServo(int servoNumber, int angle) {
-    final clamped = angle.clamp(0, 180);
+    // Servo 1 (Gripper) is constrained to 0-90, others 0-180
+    final maxAngle = servoNumber == 1 ? 90 : 180;
+    final clamped = angle.clamp(0, maxAngle);
     _pendingAngles[servoNumber - 1] = clamped;
     _sendServoThrottled(servoNumber, clamped);
   }
@@ -199,6 +201,10 @@ class RobotService extends ChangeNotifier {
     for (int i = 0; i < 7; i++) {
       _pendingAngles[i] = 90;
     }
+    // Also stop any ESP recording/playback
+    try {
+      await http.get(Uri.parse('$_baseUrl/stop')).timeout(const Duration(seconds: 2));
+    } catch (_) {}
     for (int i = 1; i <= 7; i++) {
       try {
         await http
@@ -209,6 +215,35 @@ class RobotService extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  // --- ESP On-Board Record / Play / Stop ---
+
+  Future<void> espRecord() async {
+    if (!_isConnected) return;
+    try {
+      await http.get(Uri.parse('$_baseUrl/record')).timeout(const Duration(seconds: 2));
+    } catch (e) {
+      debugPrint('OGARM: ESP Record failed: $e');
+    }
+  }
+
+  Future<void> espPlay() async {
+    if (!_isConnected) return;
+    try {
+      await http.get(Uri.parse('$_baseUrl/play')).timeout(const Duration(seconds: 2));
+    } catch (e) {
+      debugPrint('OGARM: ESP Play failed: $e');
+    }
+  }
+
+  Future<void> espStop() async {
+    if (!_isConnected) return;
+    try {
+      await http.get(Uri.parse('$_baseUrl/stop')).timeout(const Duration(seconds: 2));
+    } catch (e) {
+      debugPrint('OGARM: ESP Stop failed: $e');
+    }
   }
 
   // --- Telemetry ---

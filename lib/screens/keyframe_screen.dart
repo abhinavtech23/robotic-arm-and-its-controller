@@ -103,14 +103,6 @@ class KeyframeScreen extends StatelessWidget {
                   Row(
                     children: [
                       HeartbeatIndicator(isConnected: service.isConnected),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.settings_outlined, size: 22),
-                        color: textColor,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => Navigator.pushNamed(context, '/settings'),
-                      ),
                     ],
                   ),
                 ],
@@ -195,46 +187,7 @@ class KeyframeScreen extends StatelessWidget {
                 ),
               ),
 
-            // Speed control
-            if (!isRecording)
-              GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                borderRadius: 12,
-                child: Row(
-                  children: [
-                    Icon(Icons.speed, color: OgarmColors.amber, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      'SPEED',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 10,
-                        color: OgarmColors.amber,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    Expanded(
-                      child: Slider(
-                        value: service.playSpeed,
-                        min: 0.25,
-                        max: 3.0,
-                        divisions: 11,
-                        activeColor: OgarmColors.amber,
-                        inactiveColor: OgarmColors.amber.withValues(alpha: 0.2),
-                        label: '${service.playSpeed.toStringAsFixed(2)}x',
-                        onChanged: (v) => service.setPlaySpeed(v),
-                      ),
-                    ),
-                    Text(
-                      '${service.playSpeed.toStringAsFixed(2)}x',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 12,
-                        color: textColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+
 
             // Keyframe count
             if (!isRecording)

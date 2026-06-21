@@ -237,7 +237,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                   _buildArmAnimation(textColor),
                   const SizedBox(height: 8),
                   Text(
-                    '6-DOF MANIPULATOR CONTROLLER',
+                    '7-AXIS MANIPULATOR CONTROLLER',
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,

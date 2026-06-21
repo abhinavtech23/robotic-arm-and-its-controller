@@ -8,6 +8,7 @@ import 'theme/app_theme.dart';
 import 'screens/connection_screen.dart';
 import 'screens/control_screen.dart';
 import 'screens/keyframe_screen.dart';
+
 import 'screens/settings_screen.dart';
 
 void main() {
@@ -70,6 +71,7 @@ class _HomeShellState extends State<HomeShell> {
   static const List<Widget> _screens = [
     ControlScreen(),
     KeyframeScreen(),
+
     SettingsScreen(),
   ];
 
@@ -122,6 +124,7 @@ class _HomeShellState extends State<HomeShell> {
               activeIcon: Icon(Icons.motion_photos_auto),
               label: 'KEYFRAMES',
             ),
+
             BottomNavigationBarItem(
               icon: Icon(Icons.settings_outlined),
               activeIcon: Icon(Icons.settings),
